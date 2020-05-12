@@ -16,7 +16,7 @@ void test_brusselnator(const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
   auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
-    out[1] = in[0] * (3 - in[0] * in[1]); 
+    out[1] = in[0] * (3 - in[0] * in[1]);
   };
 
   const size_t nthreads = 24;
@@ -82,7 +82,7 @@ void test_brusselnator2(const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
   auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
-    out[1] = in[0] * (3 - in[0] * in[1]); 
+    out[1] = in[0] * (3 - in[0] * in[1]);
   };
 
   const size_t nthreads = 24;
