@@ -4,9 +4,13 @@
  * William Qian
  */
 
+#pragma once
+
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <thread>
 #include <vector>
 
 #include "rk.hh"
@@ -23,6 +27,32 @@ public:
     std::chrono::duration<double> duration = end - start;
     return duration.count();
   }
+
+  static bool pin_thread(std::thread& thread, size_t threadid) {
+    const auto num_cores = std::thread::hardware_concurrency();
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(threadid % num_cores, &cpuset);
+    auto success = !pthread_setaffinity_np(
+        thread.native_handle(), sizeof cpuset, &cpuset);
+    return success;
+  }
+
+  static void reset() {
+    started_.store(false);
+  }
+
+  static void start() {
+    started_.store(true);
+  }
+
+  static void wait_for_start() {
+    while (!started_.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+
+  static std::atomic<bool> started_;
 };
 
 template <typename T, size_t THREADS=1>

@@ -10,23 +10,26 @@
 
 #include "project.hh"
 
-void test_brusselnator() {
+std::atomic<bool> bench::Util::started_ = false;
+
+void test_brusselnator(const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
   auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
     out[1] = in[0] * (3 - in[0] * in[1]); 
   };
 
-  const size_t nthreads = 3;
+  const size_t nthreads = 24;
   using rk_type = rk::RK4Classic<3>;
   using wl_type = bench::Workload<rk_type, nthreads>;
   using gen_type = wl_type::Generator;
 
   auto rk4 = rk_type();
-  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, 2);
+  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
 
   auto thread_runner = [brusselnator_f] (
       rk_type& rk4, wl_type& workload, double& seconds, size_t threadid) {
+    bench::Util::wait_for_start();
     auto gen = workload.generator(threadid);
 
     auto driver = [brusselnator_f] (rk_type& rk4, gen_type& gen) {
@@ -45,16 +48,21 @@ void test_brusselnator() {
     threads.emplace_back(
         thread_runner, std::ref(rk4), std::ref(workload),
         std::ref(seconds[th]), th);
+    bench::Util::pin_thread(threads[threads.size() - 1], th);
   }
+
+  bench::Util::start();
 
   for (auto& th : threads) {
     th.join();
   }
 
+  bench::Util::reset();
+
   double work = 0;
   double span = 0;
   for (const double secs : seconds) {
-    printf("%f\n", secs);
+    //printf("%f\n", secs);
     work += secs;
     span = std::max(span, secs);
   }
@@ -66,27 +74,29 @@ void test_brusselnator() {
   */
 
   printf(
-      "Threads: %zu, Work: %.6f seconds, Span: %.6f seconds\n",
-      threads.size(), work, span);
+      " RK4. Depth %zu. Threads: %zu, Work: %.6f seconds, Span: %.6f seconds\n",
+      depth, threads.size(), work, span);
 }
 
-void test_brusselnator2() {
+void test_brusselnator2(const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
   auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
     out[1] = in[0] * (3 - in[0] * in[1]); 
   };
 
-  const size_t nthreads = 3;
+  const size_t nthreads = 24;
   using rk_type = rk::IRK5Geng<3>;
   using wl_type = bench::Workload<rk_type, nthreads>;
   using gen_type = wl_type::Generator;
 
   auto irk5 = rk_type();
-  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, 2);
+  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
 
   auto thread_runner = [brusselnator_f] (
       rk_type& irk5, wl_type& workload, double& seconds, size_t threadid) {
+    bench::Util::wait_for_start();
+
     auto gen = workload.generator(threadid);
 
     auto driver = [brusselnator_f] (rk_type& irk5, gen_type& gen) {
@@ -110,11 +120,16 @@ void test_brusselnator2() {
     threads.emplace_back(
         thread_runner, std::ref(irk5), std::ref(workload),
         std::ref(seconds[th]), th);
+    bench::Util::pin_thread(threads[threads.size() - 1], th);
   }
+
+  bench::Util::start();
 
   for (auto& th : threads) {
     th.join();
   }
+
+  bench::Util::reset();
 
   double work = 0;
   double span = 0;
@@ -130,8 +145,8 @@ void test_brusselnator2() {
   */
 
   printf(
-      "Threads: %zu, Work: %.6f seconds, Span: %.6f seconds\n",
-      threads.size(), work, span);
+      "IRK5. Depth %zu. Threads: %zu, Work: %.6f seconds, Span: %.6f seconds\n",
+      depth, threads.size(), work, span);
 
   printf("Aborted points: %zu\n", workload.stat_aborted());
 }
