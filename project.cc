@@ -12,11 +12,17 @@
 
 std::atomic<bool> bench::Util::started_ = false;
 
-void test_brusselnator(const size_t depth) {
+enum GridType {
+  Standard=0,
+  Peano,
+};
+
+void test_brusselator(const GridType gt, const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
-  auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
+  auto brusselator_f = [] (const double x, const double in[3], double out[3]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
     out[1] = in[0] * (3 - in[0] * in[1]);
+    out[2] = in[2];
   };
 
   const size_t nthreads = 24;
@@ -25,17 +31,25 @@ void test_brusselnator(const size_t depth) {
   using gen_type = wl_type::Generator;
 
   auto rk4 = rk_type();
-  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+  wl_type workload;
+  switch (gt) {
+    case Peano:
+      workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+      break;
+    case Standard:
+      workload = wl_type::StandardGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+      break;
+  }
 
-  auto thread_runner = [brusselnator_f] (
+  auto thread_runner = [brusselator_f] (
       rk_type& rk4, wl_type& workload, double& seconds, size_t threadid) {
     bench::Util::wait_for_start();
     auto gen = workload.generator(threadid);
 
-    auto driver = [brusselnator_f] (rk_type& rk4, gen_type& gen) {
+    auto driver = [brusselator_f] (rk_type& rk4, gen_type& gen) {
       for (auto state = gen.next(); state; state = gen.next()) {
         rk4.explicit_eval(
-          brusselnator_f, (*state)->x, (*state)->y, (*state)->x + 1, 300000);
+          brusselator_f, (*state)->x, (*state)->y, (*state)->x + 1, 300000);
       }
     };
 
@@ -78,11 +92,12 @@ void test_brusselnator(const size_t depth) {
       depth, threads.size(), work, span);
 }
 
-void test_brusselnator2(const size_t depth) {
+void test_brusselator2(const GridType gt, const size_t depth) {
   // Brusselnator: f(x, y0, y1) = (1 + y0^2y1 - 4y0, 3y0 - y0^2y1)
-  auto brusselnator_f = [] (const double x, const double in[2], double out[2]) {
+  auto brusselator_f = [] (const double x, const double in[3], double out[3]) {
     out[0] = 1 + in[0] * (in[0] * in[1] - 4);
     out[1] = in[0] * (3 - in[0] * in[1]);
+    out[2] = in[2];
   };
 
   const size_t nthreads = 24;
@@ -91,22 +106,31 @@ void test_brusselnator2(const size_t depth) {
   using gen_type = wl_type::Generator;
 
   auto irk5 = rk_type();
-  auto workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+  wl_type workload;
+  switch (gt) {
+    case Peano:
+      workload = wl_type::PeanoGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+      break;
+    case Standard:
+      workload = wl_type::StandardGrid(0, {0, 0, 0}, {1, 1, 1}, depth);
+      break;
+  }
 
-  auto thread_runner = [brusselnator_f] (
+
+  auto thread_runner = [brusselator_f] (
       rk_type& irk5, wl_type& workload, double& seconds, size_t threadid) {
     bench::Util::wait_for_start();
 
     auto gen = workload.generator(threadid);
 
-    auto driver = [brusselnator_f] (rk_type& irk5, gen_type& gen) {
+    auto driver = [brusselator_f] (rk_type& irk5, gen_type& gen) {
       for (auto state = gen.next(); state; state = gen.next()) {
         if ((*state)->aborted) {  // Skip previously-aborted points
           continue;
         }
 
         irk5.implicit_eval(
-          brusselnator_f, (*state)->x, (*state)->y, (*state)->x + 1, 300000,
+          brusselator_f, (*state)->x, (*state)->y, (*state)->x + 1, 300000,
           1e-12);
       }
     };
@@ -153,11 +177,24 @@ void test_brusselnator2(const size_t depth) {
 
 int main(int argc, char* argv[]) {
   size_t depth = 1;
+  GridType gt = Standard;
+
   if (argc > 1) {
-    sscanf(argv[1], "%zu", &depth);
+    switch (argv[1][0]) {
+      case 'p':
+        gt = Peano;
+        break;
+      case 's':
+        gt = Standard;
+        break;
+    }
   }
 
-  test_brusselnator(depth);
-  test_brusselnator2(depth);
+  if (argc > 2) {
+    sscanf(argv[2], "%zu", &depth);
+  }
+
+  test_brusselator(gt, depth);
+  test_brusselator2(gt, depth);
   return 0;
 }
