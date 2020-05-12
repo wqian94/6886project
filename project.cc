@@ -151,8 +151,13 @@ void test_brusselnator2(const size_t depth) {
   printf("Aborted points: %zu\n", workload.stat_aborted());
 }
 
-int main(int argc, char* arg[]) {
-  test_brusselnator();
-  test_brusselnator2();
+int main(int argc, char* argv[]) {
+  size_t depth = 1;
+  if (argc > 1) {
+    sscanf(argv[1], "%zu", &depth);
+  }
+
+  test_brusselnator(depth);
+  test_brusselnator2(depth);
   return 0;
 }
